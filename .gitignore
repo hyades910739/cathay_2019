@@ -3,3 +3,4 @@ cathay_test/*
 *.model
 *pycache*
 pkls/
+*png

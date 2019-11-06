@@ -88,6 +88,75 @@ class CNN(nn.Module):
         return x                                 
 
 
+class RNN(nn.Module):
+    '''
+       A basic gru-based next-item prediction model
+       
+       ----
+       params:
+       embs: a nn.Embedding layer or nn.Sequential layer that eats longtensor as input
+       emb_size: the embedding size
+       num_items: number of output items
+       hidden_size: hidden_size
+       n_layer: number of gru layer
+       dropout: dropout rate for gru
+       linear_params: list of tuples contains arguments for nn.Linear layer (in and out features)
+       bn: Bool, whether to use batchNorm in linear layer       
+
+    '''
+    def __init__(self,embs,emb_size,num_items,hidden_size,
+                 n_layer,dropout,linear_params,bn=True):
+        assert linear_params[0][0]==hidden_size*n_layer,\
+               'the in_feature of first linear layer should equal to hidden_size*n_layer'
+        
+        super(RNN,self).__init__()
+        self.n_layer = n_layer
+        self.linear_params = linear_params
+        self.embs = embs
+        self.gru = nn.GRU(
+            input_size=emb_size,
+            hidden_size=hidden_size,
+            num_layers=n_layer,
+            dropout=dropout
+        )
+        if bn: 
+            getter = lambda a,b: nn.Sequential(nn.BatchNorm1d(a),nn.Linear(a,b),nn.ReLU())
+        else:
+            getter = lambda a,b: nn.Sequential(nn.Linear(a,b),nn.ReLU())
+        
+        self.linear = nn.Sequential(*(getter(a,b) for a,b in self.linear_params))
+        self.out_w = nn.Parameter(
+            torch.empty((self.linear_params[-1][-1],num_items)).normal_(mean=0,std=0.01),            
+        )
+        self.out_b = nn.Parameter(
+            torch.empty((num_items)).normal_(mean=0,std=0.01),            
+        )
+        
+    def forward(self,x,h,sel_out=None):
+        b_size = x.shape[0]
+        x = self.embs(x)
+        x = x.transpose(0,1)
+        out,h = self.gru(x,h)
+        h = h.transpose(0,1).reshape((b_size,-1))
+        h = self.linear(h)
+        if sel_out is not None:
+            h = torch.matmul(h,self.out_w[:,sel_out]) + self.out_b[sel_out]
+        else:
+            h = torch.matmul(h,self.out_w) + self.out_b           
+        return h          
+
+
+class OneHotEncder(nn.Module):
+	'a easy one-hot-encoder embedding layer'
+    def __init__(self,num_items):
+        super(OneHotEncder,self).__init__()
+        onehot = torch.eye(num_items)
+        onehot[0,0] = 0
+        self.embs = nn.Embedding.from_pretrained(onehot,freeze=True,padding_idx=0)        
+    def forward(self,x):
+        return self.embs(x)
+
+
 class BPRLoss(nn.Module):
     '''
         Implement Bayesian Personalized Ranking Loss
@@ -155,24 +224,3 @@ class NegativeSamplingLoss(nn.Module):
         mask = (x!=y).float()
         return mask
         
-        
-    
-
-
-if __name__ == '__main__':
-	conv_params = [
-	    (5,(1,100),0,1),
-	    (5,(2,100),0,1),
-	    (5,(3,100),0,2),
-	    (5,(5,100),0,2),  
-	]
-	linear_params = [
-	    (20,100),(100,100)
-	]
-	num_items = 50
-	embs = nn.Sequential(nn.Embedding(50,100),nn.Dropout(0.1))
-
-	cnn = CNN(conv_params,linear_params,num_items,embs)
-	x = torch.randint(0,48,(3,1,10))
-	print(cnn)
-	print(cnn(x))
