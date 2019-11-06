@@ -1,0 +1,5 @@
+cathay_test/*
+*.ipynb*
+*.model
+*pycache*
+pkls/
