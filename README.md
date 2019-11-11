@@ -1,4 +1,10 @@
 # Cathay_2019
+### About
+This repo implement some sequential recommendation model for session-based Recommendations. Models and Loss function are implemented on Pytorch, including:   
+* RNN-based model (Ref. Session-based Recommendations with Recurrent Neural Networks)  
+* CNN-based model (Ref. Convolutional Neural Networks for Sentence Classification)
+* Loss function : BPR loss and Negative sampling loss.
+
 
 ### Dependency  
 including (but not limited to)...  
